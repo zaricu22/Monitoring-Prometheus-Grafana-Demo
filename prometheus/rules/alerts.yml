@@ -1,0 +1,66 @@
+# Alerting rules: Prometheus evaluates `expr` every evaluation_interval.
+# A result keeps the alert PENDING until it has been true for `for`, then it is FIRING
+# and gets sent to Alertmanager. Alertmanager (not Prometheus) groups, silences and routes it.
+groups:
+  - name: availability
+    rules:
+      - alert: InstanceDown
+        expr: up{job="monitoring-demo"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }} is down"
+          description: "Prometheus could not scrape {{ $labels.instance }} (job {{ $labels.job }}) for more than 30s."
+
+  - name: red
+    rules:
+      - alert: HighErrorRate
+        expr: application:http_server_requests_errors:ratio_rate1m > 0.05
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 5xx error rate on {{ $labels.application }}"
+          description: "{{ $value | humanizePercentage }} of requests failed over the last minute (threshold 5%)."
+
+      - alert: HighLatencyP95
+        expr: application:http_server_requests_seconds:p95_1m > 0.5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow responses on {{ $labels.application }}"
+          description: "p95 latency is {{ $value | humanizeDuration }} (threshold 500ms)."
+
+  - name: saturation
+    rules:
+      - alert: OrderQueueBacklog
+        expr: orders_queue_size > 100
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Shipping queue is growing"
+          description: "{{ $value }} paid orders are waiting to be shipped."
+
+      - alert: DbConnectionPoolExhausted
+        expr: max by (job, application, pool) (hikaricp_connections_pending) > 0
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Threads are waiting for a DB connection"
+          description: "{{ $value }} threads waiting for a connection from pool {{ $labels.pool }}."
+
+      - alert: JvmHeapHigh
+        expr: |
+          sum by (job, application) (jvm_memory_used_bytes{area="heap"})
+          /
+          sum by (job, application) (jvm_memory_max_bytes{area="heap"} > 0) > 0.9
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JVM heap above 90% on {{ $labels.application }}"
+          description: "Heap usage is {{ $value | humanizePercentage }}."

@@ -1,0 +1,37 @@
+# Build output
+target/
+
+# Spring Initializr leftovers
+HELP.md
+
+# IDEs
+*.iml
+.idea/
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+
+# Local overrides and secrets (docker-compose.override.yml is auto-loaded by Compose)
+.env
+*.env
+docker-compose.override.yml
+compose.override.yml
+
+# k6 result exports (k6 run --out json=... / --summary-export=...)
+k6/*.json
+k6/*.html
+
+# Logs
+*.log
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local notes, not part of the project
+AI Prog.txt

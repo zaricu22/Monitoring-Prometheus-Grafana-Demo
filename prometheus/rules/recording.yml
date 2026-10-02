@@ -1,0 +1,34 @@
+# Recording rules pre-compute expensive or frequently used expressions and store the
+# result as a NEW time series. Naming convention: level:metric:operations
+groups:
+  - name: http-red
+    interval: 15s
+    rules:
+      # Rate: requests per second per endpoint (actuator scrapes excluded)
+      - record: uri:http_server_requests:rate1m
+        expr: |
+          sum by (job, application, uri, method, status) (
+            rate(http_server_requests_seconds_count{uri!~"/actuator.*"}[1m])
+          )
+
+      # Errors: share of requests answered with 5xx.
+      # "or ... * 0": before the first 5xx the error series doesn't exist, and the ratio
+      # would be empty ("No data") instead of 0.
+      - record: application:http_server_requests_errors:ratio_rate1m
+        expr: |
+          (
+            sum by (job, application) (rate(http_server_requests_seconds_count{uri!~"/actuator.*", status=~"5.."}[1m]))
+            or
+            sum by (job, application) (rate(http_server_requests_seconds_count{uri!~"/actuator.*"}[1m])) * 0
+          )
+          /
+          sum by (job, application) (rate(http_server_requests_seconds_count{uri!~"/actuator.*"}[1m]))
+
+      # Duration: 95th percentile latency, computed from histogram buckets
+      - record: application:http_server_requests_seconds:p95_1m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (job, application, le) (
+              rate(http_server_requests_seconds_bucket{uri!~"/actuator.*"}[1m])
+            )
+          )

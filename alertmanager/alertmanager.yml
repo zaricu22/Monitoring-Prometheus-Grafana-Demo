@@ -1,0 +1,36 @@
+route:
+  # Alerts with the same alertname + job are batched into ONE notification.
+  group_by: [alertname, job]
+  group_wait: 10s        # wait for more alerts of a new group before the first notification
+  group_interval: 1m     # wait before notifying about changes to an existing group
+  repeat_interval: 1h    # re-send a still-firing alert after this long
+  receiver: team-orders  # default receiver
+
+  # Child routes are matched top-down; the first match wins (unless continue: true).
+  routes:
+    - matchers:
+        - severity="critical"
+      receiver: on-call
+      group_wait: 0s       # critical alerts go out immediately
+
+receivers:
+  # In real life: slack_configs, pagerduty_configs, email_configs, ...
+  # Here both are webhooks to the echo container, on different paths, so you can
+  # see in its log which route an alert took.
+  - name: team-orders
+    webhook_configs:
+      - url: http://alert-receiver:8080/team-orders
+        send_resolved: true
+
+  - name: on-call
+    webhook_configs:
+      - url: http://alert-receiver:8080/on-call
+        send_resolved: true
+
+# Inhibition: while the instance is down, the warnings it causes are just noise.
+inhibit_rules:
+  - source_matchers:
+      - alertname="InstanceDown"
+    target_matchers:
+      - severity="warning"
+    equal: [job]

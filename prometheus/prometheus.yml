@@ -1,0 +1,36 @@
+global:
+  scrape_interval: 15s       # default for every job
+  evaluation_interval: 15s   # how often recording/alerting rules run
+  external_labels:
+    environment: demo        # attached to alerts and remote-write data leaving this server
+
+# Rule files are re-read on startup and on POST /-/reload.
+rule_files:
+  - rules/*.yml
+
+# Where firing alerts are sent.
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  # The Spring Boot app. Prometheus PULLS /actuator/prometheus every 5s.
+  # Each target gets the labels job="monitoring-demo" and instance="app:8080",
+  # plus a synthetic series up{...} = 1 (scrape OK) or 0 (scrape failed).
+  - job_name: monitoring-demo
+    metrics_path: /actuator/prometheus
+    scrape_interval: 5s
+    static_configs:
+      - targets: ["app:8080"]
+        labels:
+          team: orders
+
+  # Monitoring the monitoring: Prometheus and Alertmanager expose their own metrics.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]

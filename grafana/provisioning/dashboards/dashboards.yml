@@ -1,0 +1,10 @@
+apiVersion: 1
+
+providers:
+  - name: demo-dashboards
+    folder: Monitoring Demo
+    type: file
+    allowUiUpdates: true      # you may edit in the UI, but changes are lost on restart unless exported
+    updateIntervalSeconds: 30 # picks up edits to the JSON files without restarting Grafana
+    options:
+      path: /etc/grafana/dashboards
