@@ -20,8 +20,9 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * Every call is recorded automatically by Spring Boot as {@code http_server_requests_seconds}
- * with the labels method, uri (the route template, e.g. /api/orders/{id}), status, outcome and exception.
+ * No metrics code here: Spring Boot auto-configures a filter that times every call, 
+ * and Micrometer (Maven-dependency) records it as {@code http_server_requests_seconds} with the labels: 
+ * method, uri (the route template, e.g. /api/orders/{id}), status, outcome, error and exception.
  */
 @RestController
 @RequestMapping("/api/orders")
@@ -29,6 +30,11 @@ public class OrderController {
 
     private final OrderService orderService;
     private final OrderRepository repository;
+    /** 
+     * ChaosService is used to simulate failures and latency for testing purposes. 
+     * Every request passes through chaos.apply(), but it does nothing unless you've switched chaos on.
+     * Chaos only takes effect after PUT /api/chaos, and DELETE /api/chaos sets it back to 0.
+    */
     private final ChaosService chaos;
     private final JdbcTemplate jdbc;
 

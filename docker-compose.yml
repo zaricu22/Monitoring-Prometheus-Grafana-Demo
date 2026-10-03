@@ -1,7 +1,16 @@
 name: monitoring-demo
 
+# Start the whole stack:  docker compose up -d --build
+# Stop it (keep data):    docker compose down
+# Starting one service also starts the services it depends_on.
+
 services:
   # ---------- the monitored system ----------
+
+  # Purpose: PostgreSQL database of the order API (real DB, so HikariCP pool metrics are meaningful).
+  # Start:   docker compose up -d postgres
+  # Login:   demo / demo, database "orders"
+  # URL:     localhost:5432  (JDBC: jdbc:postgresql://localhost:5432/orders)
   postgres:
     image: postgres:17
     environment:
@@ -18,6 +27,12 @@ services:
       timeout: 3s
       retries: 10
 
+  # Purpose: Spring Boot order API instrumented with Micrometer; exposes the metrics Prometheus scrapes.
+  # Start:   docker compose up -d --build app   (also starts postgres)
+  # Login:   none
+  # URL:     http://localhost:8080/api/orders           REST API
+  #          http://localhost:8080/actuator/health      health check
+  #          http://localhost:8080/actuator/prometheus  raw metrics, exactly as Prometheus sees them
   app:
     build: ./app
     environment:
@@ -32,6 +47,11 @@ services:
         condition: service_healthy
 
   # ---------- the monitoring stack ----------
+
+  # Purpose: scrapes the app metrics every 5 s, stores the time series, evaluates recording and alerting rules.
+  # Start:   docker compose up -d prometheus   (also starts app and postgres)
+  # Login:   none
+  # URL:     http://localhost:9090  (Query, Targets, Alerts, Rules)
   prometheus:
     image: prom/prometheus:v3.15.0
     command:
@@ -46,6 +66,10 @@ services:
     depends_on:
       - app
 
+  # Purpose: receives firing alerts from Prometheus, groups, routes and inhibits them, sends notifications.
+  # Start:   docker compose up -d alertmanager
+  # Login:   none
+  # URL:     http://localhost:9093  (active alerts, silences)
   alertmanager:
     image: prom/alertmanager:v0.34.1
     command:
@@ -55,8 +79,11 @@ services:
     volumes:
       - ./alertmanager:/etc/alertmanager:ro
 
-  # Stand-in for Slack/PagerDuty/e-mail: logs every webhook Alertmanager sends.
-  # Watch it with: docker compose logs -f alert-receiver
+  # Purpose: Separate client of Alertmanager's notifications(alerts), only logs them (in real life clients are: Slack, email, etc.).
+  # Start:   docker compose up -d alert-receiver
+  # Login:   none
+  # URL:     no UI; watch notifications with: docker compose logs -f alert-receiver
+  #          (http://localhost:8085 only echoes back the request you send)
   alert-receiver:
     image: mendhak/http-https-echo:latest
     environment:
@@ -65,6 +92,11 @@ services:
     ports:
       - "8085:8080"
 
+  # Purpose: Metrics dashboards: RED & Business, JVM & Database (USE).
+  #          read data from Prometheus (all Spring Boot + Micrometer metrics + custom record metrics + alerts).
+  # Start:   docker compose up -d grafana   (also starts prometheus, app and postgres)
+  # Login:   admin / admin  (skip the password change prompt)
+  # URL:     http://localhost:3000  -> Dashboards -> Monitoring Demo
   grafana:
     image: grafana/grafana:13.2.3
     environment:
@@ -84,7 +116,14 @@ services:
       - prometheus
 
   # ---------- load generator (run on demand) ----------
-  # docker compose run --rm k6 run /scripts/load.js
+
+  # Purpose: generates realistic traffic against the app (profiles: load, spike, smoke), whitout it Grafana do not have data to show.
+  # Start:   not started by "up" (profile "load"); run one test, the container is removed afterwards:
+  #            docker compose run --rm k6 run /scripts/load.js
+  #            docker compose run --rm k6 run -e PROFILE=spike /scripts/load.js
+  #          Git Bash: prefix with MSYS_NO_PATHCONV=1
+  # Login:   none
+  # URL:     none; calls the app inside the Compose network at http://app:8080
   k6:
     image: grafana/k6:2.3.0
     profiles: ["load"]

@@ -14,9 +14,8 @@ route:
       group_wait: 0s       # critical alerts go out immediately
 
 receivers:
-  # In real life: slack_configs, pagerduty_configs, email_configs, ...
-  # Here both are webhooks to the echo container, on different paths, so you can
-  # see in its log which route an alert took.
+  # Here we use alert-receiver as separate consumer (in real life: Slack, email, etc.), which only logs alerts.
+  # Grafana fetches from Prometheus, it does not receive alerts directly from Alertmanager.
   - name: team-orders
     webhook_configs:
       - url: http://alert-receiver:8080/team-orders

@@ -8,6 +8,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** 
+  * ChaosService is used to simulate failures and latency for testing purposes. 
+  * Who calls it:
+  *  - k6: about 7% of its traffic (k6/load.js, http.get(${BASE_URL}/api/orders/stats)).
+  *  - You: manually, e.g. curl localhost:8080/api/orders/stats to see the order flow working (orders moving to SHIPPED).
+*/
 @RestController
 @RequestMapping("/api/chaos")
 public class ChaosController {

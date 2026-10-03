@@ -4,33 +4,37 @@ global:
   external_labels:
     environment: demo        # attached to alerts and remote-write data leaving this server
 
+# Recording and Alerting rules definitions.
 # Rule files are re-read on startup and on POST /-/reload.
 rule_files:
   - rules/*.yml
 
-# Where firing alerts are sent.
+# Where firing alerts are sent, Alertmanager URL.
 alerting:
   alertmanagers:
     - static_configs:
         - targets: ["alertmanager:9093"]
 
+# Prometheus pull every 5s from /actuator/prometheus metric endpoint (provided by SpringBoot + Micrometer).
+# Data model: time series <=> metric name + labels(key=value pairs) + samples(timestamp + value)
+# Plus a synthetic series up{...} = 1 (scrape OK) or 0 (scrape failed).
 scrape_configs:
-  # The Spring Boot app. Prometheus PULLS /actuator/prometheus every 5s.
-  # Each target gets the labels job="monitoring-demo" and instance="app:8080",
-  # plus a synthetic series up{...} = 1 (scrape OK) or 0 (scrape failed).
-  - job_name: monitoring-demo
-    metrics_path: /actuator/prometheus
+  # metrics endpoint <- Micrometer & application.yml <- Spring Boot app's.
+  # Grafana fetches from Prometheus all stored metrics + custom record metrics + alerts
+  - job_name: monitoring-demo   # label job="monitoring-demo"
+    metrics_path: /actuator/prometheus  
     scrape_interval: 5s
     static_configs:
-      - targets: ["app:8080"]
+      - targets: ["app:8080"]   # label instance="app:8080"
         labels:
-          team: orders
+          team: orders  
 
-  # Monitoring the monitoring: Prometheus and Alertmanager expose their own metrics.
+  # For Prometheus's internal health and performance, while it's running.
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
 
+  # We scrape metrics about Alertmanager, we need to know if it's up or down (for alerting).
   - job_name: alertmanager
     static_configs:
       - targets: ["alertmanager:9093"]

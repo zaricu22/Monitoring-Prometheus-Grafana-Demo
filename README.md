@@ -90,15 +90,20 @@ flowchart LR
 
 The app serves two kinds of traffic on the same port.\
 **Clients** (k6, curl) call only the business API under `/api/**`.\
-**Prometheus** only scrapes (fetches) `/actuator/prometheus`.
+**Prometheus** only scrapes (fetches) `/actuator/prometheus` metrics endpoint (provided by Spring Boot and Micrometer).
 
-**Micrometer:**\
-The API never calls the actuator: Micrometer records each API request in memory (via `Counter`, `Gauge`, `Timer`, `DistributionSummary` classes; like SLF4J for logging), exports them through a registry to the backend API, and Prometheus's scrape (fetch) reads those values.
+**Recording:**\
+The backend API never directly calls any actuator endpoint.\
+**Micrometer** (as part of app / Maven dependency) records each API request in memory (via `Counter`, `Gauge`, `Timer`, `DistributionSummary` classes; like SLF4J for logging).\
+It exports (Prometheus-compatible format) them through a registry to the backend API, and Prometheus's scrape (fetch) reads those values.\
+Alongside the provided Spring Boot + Micrometer metrics, Prometheus also provides custom additional recording rules (`prometheus/rules/recording.yml`), evaluated on interval.\
+**Grafana** only reads.
 
 **Alerting:**\
-Runs entirely on the Prometheus side, from the stored time series: Prometheus evaluates the rules in `prometheus/rules/alerts.yml`.\
-Prometheus pushes firing alerts to **Alertmanager**; it never sends notifications itself.\
-Alertmanager delivers them as webhooks to `alert-receiver`. **Grafana** only reads.
+Runs entirely on the Prometheus side, from the stored time series (Prometheus's TSDB).\
+Prometheus evaluates the alerting rules (`prometheus/rules/alerts.yml`) and pushes firing alerts to **Alertmanager**; it never sends notifications itself.\
+**Grafana** doesn't fetch alerts from Alertmanager; they read them from Prometheus. Only Grafana's Alerting pages query Alertmanager.\
+**alert-receiver** demonstrates a separate consumer (in real life it is Slack, PagerDuty, e-mail, ...), provided as Alertmanager webhook.
 
 | Component | Version | URL | What it does here |
 |---|---|---|---|
@@ -207,8 +212,8 @@ Invoke-RestMethod -Method Delete -Uri http://localhost:8080/api/chaos
 ### Watch alert notifications
 
 ```bash
-# alert-receiver is a small echo web server. Alertmanager is configured to send its webhooks to it
-# (http://alert-receiver:8080/team-orders), and it writes every request it receives to its log.
+# alert-receiver is a small echo web server, to demonstrate a separate alert consumer.
+# Alertmanager is configured to send its webhooks to it, and alert-receiver writes everything it receives to its log.
 # "docker compose logs alert-receiver" prints that container's log.
 # -f (follow) keeps the command running and streams new lines as they arrive.
 docker compose logs -f alert-receiver
@@ -477,8 +482,8 @@ Dividing the `status=~"5.."` part by the total gives the error ratio.
     - the *Error ratio* panel's second line (B) on the RED dashboard
     - the alert rules: `HighErrorRate` uses the error-ratio rule, `HighLatencyP95` uses the p95 rule
   - **Alerting rules:** these go two ways:
-    - the state is stored in the same TSDB as the `ALERTS` series, which feeds the dashboards' red annotation markers
-    - firing alerts are pushed to **Alertmanager**, which groups and routes them and sends them on as webhooks to `alert-receiver`
+    - **Grafana:** the state is stored in the same TSDB as the `ALERTS` series, which feeds the dashboards' red annotation markers
+    - **alert-receiver:** firing alerts are pushed to **Alertmanager**, which groups and routes them and sends them on as webhooks
 
 > [!IMPORTANT]
 > So the chain is: **app (Micrometer) → scrape → Prometheus TSDB → rules → new series in the same TSDB** (recording)
@@ -710,8 +715,8 @@ Monitoring-Prometheus-Grafana-Demo/
 ├── prometheus/
 │   ├── prometheus.yml                    scrape jobs, rule files, alertmanager target
 │   └── rules/
-│       ├── recording.yml                 pre-computed RED series
-│       └── alerts.yml                    6 alerting rules
+│       ├── recording.yml                 RED dashboard: new pre-computed metrics
+│       └── alerts.yml                    RED and USE dashboards: rules for 6 alerts
 ├── alertmanager/alertmanager.yml         grouping, routing tree, inhibition, webhook receivers
 ├── grafana/
 │   ├── provisioning/datasources/         Prometheus + Alertmanager data sources

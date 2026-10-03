@@ -1,13 +1,18 @@
 # Alerting rules: Prometheus evaluates `expr` every evaluation_interval.
-# A result keeps the alert PENDING until it has been true for `for`, then it is FIRING
-# and gets sent to Alertmanager. Alertmanager (not Prometheus) groups, silences and routes it.
+# A result keeps the alert PENDING until it has been true for `for`, then it is FIRING and gets sent to Alertmanager. 
+# Alertmanager (not Prometheus) groups, silences and routes it.
+#
+# Used by grafana/dashboards/orders-red.json and grafana/dashboards/jvm-db-use.json
 groups:
   - name: availability
     rules:
-      - alert: InstanceDown
+      # Grafana panel: RED → Status stat
+      - alert: InstanceDown  
+        # Condition
         expr: up{job="monitoring-demo"} == 0
         for: 30s
-        labels:
+        # additional metric label
+        labels:   
           severity: critical
         annotations:
           summary: "{{ $labels.instance }} is down"
@@ -15,7 +20,8 @@ groups:
 
   - name: red
     rules:
-      - alert: HighErrorRate
+      # Grafana panel: RED → Error ratio (5xx), Errors stat 
+      - alert: HighErrorRate   
         expr: application:http_server_requests_errors:ratio_rate1m > 0.05
         for: 1m
         labels:
@@ -24,7 +30,8 @@ groups:
           summary: "High 5xx error rate on {{ $labels.application }}"
           description: "{{ $value | humanizePercentage }} of requests failed over the last minute (threshold 5%)."
 
-      - alert: HighLatencyP95
+      # Grafana panel: RED → Latency percentiles, Latency p95 stat  
+      - alert: HighLatencyP95    
         expr: application:http_server_requests_seconds:p95_1m > 0.5
         for: 1m
         labels:
@@ -35,7 +42,8 @@ groups:
 
   - name: saturation
     rules:
-      - alert: OrderQueueBacklog
+      # Grafana panel: RED → Shipping queue over time, Shipping queue gauge
+      - alert: OrderQueueBacklog   
         expr: orders_queue_size > 100
         for: 1m
         labels:
@@ -44,7 +52,8 @@ groups:
           summary: "Shipping queue is growing"
           description: "{{ $value }} paid orders are waiting to be shipped."
 
-      - alert: DbConnectionPoolExhausted
+      # Grafana panel: JVM & DB → Connections, line "pending threads (saturation)"
+      - alert: DbConnectionPoolExhausted  
         expr: max by (job, application, pool) (hikaricp_connections_pending) > 0
         for: 30s
         labels:
@@ -53,7 +62,8 @@ groups:
           summary: "Threads are waiting for a DB connection"
           description: "{{ $value }} threads waiting for a connection from pool {{ $labels.pool }}."
 
-      - alert: JvmHeapHigh
+      # Grafana panel: JVM & DB → Heap used stat 
+      - alert: JvmHeapHigh   
         expr: |
           sum by (job, application) (jvm_memory_used_bytes{area="heap"})
           /

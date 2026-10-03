@@ -21,12 +21,11 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 /**
  * Business logic plus programmatic (builder-style) Micrometer instrumentation.
  * Covers the four Prometheus metric types:
- * <ul>
- *   <li>Counter   - {@code orders_placed_total}, {@code orders_payments_total}</li>
- *   <li>Gauge     - {@code orders_queue_size}</li>
- *   <li>Summary   - {@code orders_amount_euros} (quantiles computed inside the app)</li>
- *   <li>Histogram - {@code orders_shipping_seconds_bucket} (quantiles computed by PromQL)</li>
- * </ul>
+ *   Counter   - {@code orders_placed_total}, {@code orders_payments_total} - cumulative value over time (can only go up)
+ *   Gauge     - {@code orders_queue_size} - current value at scrape time (changes up and down)
+ *   Summary   - {@code orders_amount_euros} - quantiles computed inside the app (how many requests were above/below a certain value)
+ *   Histogram - {@code orders_shipping_seconds_bucket} - quantiles computed by PromQL (how many requests were above/below a certain value)
+ * Data model: time series <=> metric name + labels(key=value pairs) + samples(timestamp + value)
  */
 @Service
 public class OrderService {
@@ -43,8 +42,15 @@ public class OrderService {
 
     private final OrderRepository repository;
     private final PaymentService paymentService;
+    /**
+     * Micrometer export data through a registry. 
+     * A MeterRegistry holds all meters and hands their current values to a backend. 
+     * It renders the values as Prometheus text only when /actuator/prometheus is requested. 
+    */
     private final MeterRegistry registry;
+    // Summary metric
     private final DistributionSummary orderAmount;
+    // Histogram metric
     private final Timer shippingTimer;
 
     public OrderService(OrderRepository repository, PaymentService paymentService, MeterRegistry registry) {
@@ -52,10 +58,10 @@ public class OrderService {
         this.paymentService = paymentService;
         this.registry = registry;
 
-        // Gauge: Micrometer keeps a reference to the queue and calls size() on every scrape.
+        // Gauge metric: Micrometer keeps a reference to the queue and calls size() on every scrape.
         registry.gaugeCollectionSize("orders.queue.size", Tags.empty(), shippingQueue);
 
-        // Summary: quantiles are calculated in the JVM. Cheap to query, but they CANNOT be
+        // Summary metric: quantiles are calculated in the JVM. Cheap to query, but they CANNOT be
         // aggregated across instances (an average of p95s is not a p95).
         this.orderAmount = DistributionSummary.builder("orders.amount")
                 .baseUnit("euros")
@@ -63,7 +69,7 @@ public class OrderService {
                 .publishPercentiles(0.5, 0.95, 0.99)
                 .register(registry);
 
-        // Histogram: only bucket counters are exported; histogram_quantile() computes percentiles
+        // Histogram metric: only bucket counters are exported; histogram_quantile() computes percentiles
         // at query time, and buckets CAN be summed across instances.
         this.shippingTimer = Timer.builder("orders.shipping")
                 .description("Time to ship one paid order")
@@ -74,6 +80,10 @@ public class OrderService {
                 .register(registry);
     }
 
+    // Counter metric via builder with a bounded label: channel has 3 possible values -> 3 time series.
+    // ANTI-PATTERN - never do this: one new time series per each order -> cardinality explosion.
+    // example: counter("orderId", ...).increment(); - order ids, e-mails, raw URLs, timestamps, error messages 
+    // (it has a big range of possible values, making new metric series for nearly every request, causing memory explosion).
     public Order create(CreateOrderRequest request) {
         BigDecimal unitPrice = PRICES.get(request.product());
         if (unitPrice == null) {
@@ -82,10 +92,8 @@ public class OrderService {
         BigDecimal amount = unitPrice.multiply(BigDecimal.valueOf(request.quantity()));
         Order order = repository.save(new Order(request.product(), request.quantity(), amount, request.channel()));
 
-        // Counter with a bounded label: channel has 3 possible values -> 3 time series.
+        
         counter("orders.placed", "channel", request.channel()).increment();
-        // ANTI-PATTERN - never do this: one new time series per order -> cardinality explosion.
-        // counter("orders.placed", "orderId", order.getId().toString()).increment();
 
         orderAmount.record(amount.doubleValue());
 
@@ -116,6 +124,7 @@ public class OrderService {
         }
     }
 
+    // Couner metric via builder.
     private Counter counter(String name, String tagKey, String tagValue) {
         // Builders are idempotent: the same name + tags returns the already registered counter.
         return Counter.builder(name).tag(tagKey, tagValue).register(registry);

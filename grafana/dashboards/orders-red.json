@@ -564,7 +564,7 @@
     {
       "type": "timeseries",
       "title": "Request rate by endpoint",
-      "description": "Rate. uri is the route TEMPLATE (/api/orders/{id}), not the raw path - that keeps cardinality bounded.",
+      "description": "Rate. uri is the route TEMPLATE (/api/orders/{id}), not the raw path - that keeps cardinality bounded. Dashed line: the total from the recording rule uri:http_server_requests:rate1m; it should follow the top of the stack.",
       "id": 9,
       "datasource": {
         "type": "prometheus",
@@ -585,6 +585,15 @@
           "expr": "sum by (method, uri) (rate(http_server_requests_seconds_count{application=~\"$application\", instance=~\"$instance\", uri=~\"$uri\", uri!~\"/actuator.*\"}[$__rate_interval]))",
           "legendFormat": "{{method}} {{uri}}",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(uri:http_server_requests:rate1m{application=~\"$application\", uri=~\"$uri\"})",
+          "legendFormat": "total (recording rule 1m)",
+          "refId": "B"
         }
       ],
       "fieldConfig": {
@@ -604,7 +613,44 @@
             "mode": "palette-classic"
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total (recording rule 1m)"
+            },
+            "properties": [
+              {
+                "id": "custom.stacking",
+                "value": {
+                  "mode": "none",
+                  "group": "A"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -807,7 +853,7 @@
     {
       "type": "timeseries",
       "title": "Latency percentiles",
-      "description": "Averages hide outliers - compare 'average' with p99. Red line = HighLatencyP95 alert threshold.",
+      "description": "Averages hide outliers - compare 'average' with p99. Red line = HighLatencyP95 alert threshold. Dashed line: the recording rule the HighLatencyP95 alert checks (all endpoints; ignores the Endpoint/Instance filters).",
       "id": 12,
       "datasource": {
         "type": "prometheus",
@@ -855,6 +901,15 @@
           "expr": "sum(rate(http_server_requests_seconds_sum{application=~\"$application\", instance=~\"$instance\", uri=~\"$uri\", uri!~\"/actuator.*\"}[$__rate_interval])) / sum(rate(http_server_requests_seconds_count{application=~\"$application\", instance=~\"$instance\", uri=~\"$uri\", uri!~\"/actuator.*\"}[$__rate_interval]))",
           "legendFormat": "average",
           "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "application:http_server_requests_seconds:p95_1m{application=~\"$application\"}",
+          "legendFormat": "p95 (recording rule 1m)",
+          "refId": "E"
         }
       ],
       "fieldConfig": {
@@ -891,7 +946,44 @@
           },
           "min": 0
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95 (recording rule 1m)"
+            },
+            "properties": [
+              {
+                "id": "custom.stacking",
+                "value": {
+                  "mode": "none",
+                  "group": "A"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {

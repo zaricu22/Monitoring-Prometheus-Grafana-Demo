@@ -25,14 +25,18 @@ management:
     web:
       exposure:
         # /actuator/prometheus is the endpoint Prometheus scrapes.
+        # health - Health status (UP/DOWN, db, diskSpace, ping, livenessState, readinessState, ssl)
+        # info - Application info (version, build, git, java, os; empty here until configured)
+        # metrics - Metrics (HTTP, JVM, CPU, Tomcat, HikariCP, JDBC, Logback, executor, custom orders/payment/chaos)
         include: health, info, metrics, prometheus
   endpoint:
     health:
+      # Everyone (every caller) can see everything (DB, disk space, ping, liveness/readiness)
       show-details: always
   metrics:
-    # Common tag added to EVERY metric - lets one dashboard filter many applications.
+    # Common tag added to EVERY metric (time series) - lets one dashboard filter many applications.
     tags:
-      application: ${spring.application.name}
+      application: ${spring.application.name}   # label application="monitoring-demo" on every metric
     distribution:
       # Publish histogram buckets for HTTP latency so PromQL can compute any percentile.
       percentiles-histogram:

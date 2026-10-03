@@ -1,17 +1,17 @@
-// Realistic traffic for the demo app.
+// Realistic traffic for the demo app. Manually run with:
 //
 //   docker compose run --rm k6 run /scripts/load.js                    # default "load" profile (~8 min)
 //   docker compose run --rm k6 run -e PROFILE=spike /scripts/load.js   # overloads the shipping queue
 //   docker compose run --rm k6 run -e PROFILE=smoke /scripts/load.js   # 1 min sanity check
 //
-// Uses an arrival-rate executor: k6 starts N iterations per second regardless of how slow
-// the app is (an "open model"), like real users - so latency problems show up as latency,
-// not as a silently reduced request rate.
+// Uses an k6's arrival-rate executor: k6 starts N iterations per second regardless of how slow the app is (an "open model"), 
+// like real users - so latency problems show up as latency, not as a silently reduced request rate.
 import http from 'k6/http';
 import { check } from 'k6';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 
+// Define different load profiles (stage) for the test scenarios.
 const PROFILES = {
   smoke: [
     { duration: '1m', target: 5 },
@@ -32,15 +32,16 @@ const PROFILES = {
   ],
 };
 
+// k6's standard way to configure a test inside the script
 export const options = {
   scenarios: {
     shop: {
-      executor: 'ramping-arrival-rate',
+      executor: 'ramping-arrival-rate', // k6's open model executor
       startRate: 1,
       timeUnit: '1s',
       preAllocatedVUs: 20,
       maxVUs: 200,
-      stages: PROFILES[__ENV.PROFILE || 'load'],
+      stages: PROFILES[__ENV.PROFILE || 'load'], // k6's defined load profiles
     },
   },
   // k6's own pass/fail criteria (client side view of the same RED signals).
@@ -49,6 +50,8 @@ export const options = {
     http_req_duration: ['p(95)<800'],
   },
 };
+
+//-----------------------  EXECUTED CODE BY K6 -----------------------------
 
 const PRODUCTS = ['keyboard', 'mouse', 'monitor', 'headset', 'laptop'];
 const CHANNELS = ['web', 'web', 'web', 'mobile', 'mobile', 'partner']; // web is the busiest channel
@@ -73,6 +76,7 @@ function createOrder() {
   }
 }
 
+// One iteration of a virtual user: the code k6 auto runs again and again during the test.
 export default function () {
   const roll = Math.random();
 
